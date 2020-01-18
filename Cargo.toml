@@ -1,0 +1,12 @@
+[package]
+name = "bitmatch"
+version = "0.1.0"
+authors = ["Cassie Jones <code@witchoflight.com>"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = {version = "1.0", features = ["full", "extra-traits", "visit-mut"] }
+quote = "1.0"
