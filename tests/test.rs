@@ -1,10 +1,10 @@
 use bitmatch::bitmatch;
 
 #[bitmatch]
-fn interleave(n: u8) -> u8 {
+fn swap_nibbles(n: u8) -> u8 {
     #[bitmatch]
     let "xxxx_yyyy" = n;
-    bitpack!(xyxyxyxy)
+    bitpack!("yyyy_xxxx")
 }
 
 #[bitmatch]
@@ -21,4 +21,7 @@ fn decode(inst: u8) -> u8 {
     }
 }
 
-fn main() {}
+#[test]
+fn test_swap_nibbles() {
+    assert_eq!(swap_nibbles(0xfa), 0xaf);
+}

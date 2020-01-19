@@ -9,7 +9,7 @@ use syn::{
     token::{Brace, Paren},
     visit_mut::{self, VisitMut},
     Attribute, Block, Expr, ExprBlock, ExprLit, ExprMacro, ExprMatch, ExprTuple, Ident, Lit,
-    LitInt, Local, Pat, PatIdent, PatTuple, Path, Stmt, Token,
+    LitInt, LitStr, Local, Pat, PatIdent, PatTuple, Path, Stmt, Token,
 };
 
 #[cfg(test)]
@@ -130,11 +130,24 @@ fn rewrite_match(i: &mut ExprMatch) {
 }
 
 fn rewrite_macro(i: &mut Expr) {
-    *i = Expr::Lit(ExprLit {
-        attrs: Vec::new(),
-        lit: Lit::Int(LitInt::new("0", i.span())),
-    });
-    // println!("Rewrote macro: {:#?}", i);
+    let span = i.span();
+    let template = if let Expr::Macro(expr) = i {
+        match expr.mac.parse_body::<LitStr>() {
+            Ok(s) => s.value(),
+            _ => panic!("The bitpack!() takes a single string literal"),
+        }
+    } else {
+        unreachable!()
+    };
+    let vars = vars(&template);
+    println!("{} {:?}", template, vars);
+    *i = parse_quote! { 0 };
+    for &var in &vars {
+        let ident = Ident::new(&format!("{}", var), span);
+        let mask = mask_for(var, &template);
+        let insert = insert_with_mask(&mask, &parse_quote!(#ident));
+        *i = parse_quote!(#i | #insert);
+    }
 }
 
 struct BitmatchVisitor;
@@ -288,6 +301,19 @@ fn extract_with_mask(m: &str, expr: &Expr) -> Expr {
         }
         let shift = m[down + 1..].len();
         parse_quote!((#expr & #mask) >> #shift)
+    } else {
+        parse_quote!(#expr & #mask)
+    }
+}
+
+fn insert_with_mask(m: &str, expr: &Expr) -> Expr {
+    let mask = make_int_bits(m);
+    if let Some(down) = m.find("10") {
+        if m[down..].find("01").is_some() {
+            panic!("Non-contiguous variables unsupported. Invalid mask: {}", m);
+        }
+        let shift = m[down + 1..].len();
+        parse_quote!((#expr << #shift) & #mask)
     } else {
         parse_quote!(#expr & #mask)
     }
