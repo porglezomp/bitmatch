@@ -1,7 +1,10 @@
 title = 'Make unused variable warnings more precise'
 status = 'Open'
 id = '84beff00-3a91-11ea-9966-5ba3368310cb'
-assignees = []
+assignees = [[
+    '88aa5408-dcc2-42cf-9fd8-17839d2fb819',
+    'porglezomp',
+]]
 description = '''
 Since we bind variables, they get unused variable warnings. Because they're not
 Rust's variable bindings, the variables are duplicated in the pattern guard and
