@@ -9,7 +9,7 @@ use syn::{
     token::{Brace, Paren},
     visit_mut::{self, VisitMut},
     Attribute, Block, Expr, ExprBlock, ExprLit, ExprMacro, ExprMatch, ExprTuple, Ident, Lit,
-    LitInt, LitStr, Local, Pat, PatIdent, PatTuple, Path, Stmt, Token,
+    LitInt, LitStr, Local, Pat, PatIdent, PatTuple, Path, Stmt, Token, Type,
 };
 
 #[cfg(test)]
@@ -140,14 +140,13 @@ fn rewrite_macro(i: &mut Expr) {
         unreachable!()
     };
     let vars = vars(&template);
-    println!("{} {:?}", template, vars);
-    *i = parse_quote! { 0 };
+    let mut clauses = Vec::new();
     for &var in &vars {
         let ident = Ident::new(&format!("{}", var), span);
         let mask = mask_for(var, &template);
-        let insert = insert_with_mask(&mask, &parse_quote!(#ident));
-        *i = parse_quote!(#i | #insert);
+        clauses.push(insert_with_mask(&mask, &parse_quote!(#ident)));
     }
+    *i = or_all(&clauses);
 }
 
 struct BitmatchVisitor;
@@ -254,10 +253,8 @@ fn pat_value(p: &str) -> String {
 }
 
 fn make_int_bits(bits: &str) -> Expr {
-    Expr::Lit(ExprLit {
-        attrs: Vec::new(),
-        lit: Lit::Int(LitInt::new(&format!("0b{}", bits), Span::call_site())),
-    })
+    let lit = LitInt::new(&format!("0b{}", bits), Span::call_site());
+    parse_quote!(#lit)
 }
 
 fn pattern_guard(item: &Ident, case: &str) -> (Token![if], Box<Expr>) {
@@ -293,29 +290,81 @@ fn irrefutable_pat(p: &str) -> bool {
     p.chars().all(|p| p != '0' && p != '1')
 }
 
-fn extract_with_mask(m: &str, expr: &Expr) -> Expr {
-    let mask = make_int_bits(m);
-    if let Some(down) = m.find("10") {
-        if m[down..].find("01").is_some() {
-            panic!("Non-contiguous variables unsupported. Invalid mask: {}", m);
+fn mask_segments(m: &str) -> Vec<(usize, usize)> {
+    let mut result = Vec::new();
+    let mut start = 0;
+    let mut len = 0;
+    for (i, c) in m.chars().rev().enumerate() {
+        if len == 0 && c == '1' {
+            start = i;
         }
-        let shift = m[down + 1..].len();
-        parse_quote!((#expr & #mask) >> #shift)
+        if c == '1' {
+            len += 1;
+        }
+        if len != 0 && c == '0' {
+            result.push((start, len));
+            len = 0;
+        }
+    }
+    if len != 0 {
+        result.push((start, len));
+    }
+    result
+}
+
+fn int_of_width(m: &str) -> Type {
+    if m.len() > 128 {
+        panic!("Unupported: bit pattern {:?} wider than 128 bits", m)
+    } else if m.len() > 64 {
+        parse_quote!(u128)
+    } else if m.len() > 32 {
+        parse_quote!(u64)
+    } else if m.len() > 16 {
+        parse_quote!(u32)
+    } else if m.len() > 8 {
+        parse_quote!(u16)
     } else {
-        parse_quote!(#expr & #mask)
+        parse_quote!(u8)
     }
 }
 
+fn extract_with_mask(m: &str, expr: &Expr) -> Expr {
+    let mut clauses = Vec::new();
+    let mut cumulative = 0;
+    for (start, count) in mask_segments(m) {
+        let amt = start - cumulative;
+        let mask = LitInt::new(&format!("0x{:X}", ((1 << count) - 1) << start), expr.span());
+        clauses.push(parse_quote!((#expr & #mask) >> #amt));
+        cumulative += count;
+    }
+    or_all(&clauses)
+}
+
 fn insert_with_mask(m: &str, expr: &Expr) -> Expr {
-    let mask = make_int_bits(m);
-    if let Some(down) = m.find("10") {
-        if m[down..].find("01").is_some() {
-            panic!("Non-contiguous variables unsupported. Invalid mask: {}", m);
-        }
-        let shift = m[down + 1..].len();
-        parse_quote!((#expr << #shift) & #mask)
+    let ty = int_of_width(m);
+    let mut clauses = Vec::new();
+    let mut cumulative = 0;
+    for (start, count) in mask_segments(m) {
+        let amt = start - cumulative;
+        let mask = LitInt::new(
+            &format!("0x{:X}", ((1 << count) - 1) << cumulative),
+            expr.span(),
+        );
+        clauses.push(parse_quote!((#expr as #ty & #mask) << #amt));
+        cumulative += count;
+    }
+    or_all(&clauses)
+}
+
+fn or_all(clauses: &[Expr]) -> Expr {
+    if clauses.is_empty() {
+        parse_quote!(0)
     } else {
-        parse_quote!(#expr & #mask)
+        let mut acc = clauses[0].clone();
+        for clause in &clauses[1..] {
+            acc = parse_quote!(#acc | #clause);
+        }
+        acc
     }
 }
 

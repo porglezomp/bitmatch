@@ -18,3 +18,13 @@ fn test_masks() {
 fn test_values() {
     assert_eq!(&pat_value("101?_aabb"), "10100000");
 }
+
+#[test]
+fn test_mask_segments() {
+    assert_eq!(mask_segments("0000"), vec![]);
+    assert_eq!(mask_segments("0001"), vec![(0, 1)]);
+    assert_eq!(mask_segments("0011"), vec![(0, 2)]);
+    assert_eq!(mask_segments("0110"), vec![(1, 2)]);
+    assert_eq!(mask_segments("1101"), vec![(0, 1), (2, 2)]);
+    assert_eq!(mask_segments("1111"), vec![(0, 4)]);
+}
