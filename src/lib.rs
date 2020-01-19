@@ -252,9 +252,7 @@ fn pattern_guard(item: &Ident, case: &str) -> (Token![if], Box<Expr>) {
     let value = make_int_bits(&pat_value(case));
     (
         Token![if]([item.span()]),
-        Box::new(parse_quote! {
-            #item & #mask == #value
-        }),
+        Box::new(parse_quote!(#item & #mask == #value)),
     )
 }
 
@@ -284,8 +282,14 @@ fn irrefutable_pat(p: &str) -> bool {
 
 fn extract_with_mask(m: &str, expr: &Expr) -> Expr {
     let mask = make_int_bits(m);
-    parse_quote! {
-        #expr & #mask
+    if let Some(down) = m.find("10") {
+        if m[down..].find("01").is_some() {
+            panic!("Non-contiguous variables unsupported. Invalid mask: {}", m);
+        }
+        let shift = m[down + 1..].len();
+        parse_quote!((#expr & #mask) >> #shift)
+    } else {
+        parse_quote!(#expr & #mask)
     }
 }
 
