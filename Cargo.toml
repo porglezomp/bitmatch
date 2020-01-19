@@ -10,3 +10,5 @@ proc-macro = true
 [dependencies]
 syn = {version = "1.0", features = ["full", "extra-traits", "visit-mut"] }
 quote = "1.0"
+boolean_expression = "0.3.9"
+proc-macro2 = "1.0"
