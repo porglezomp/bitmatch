@@ -6,10 +6,9 @@ use quote::quote;
 use syn::{
     parse_macro_input, parse_quote,
     spanned::Spanned,
-    token::{Brace, Paren},
     visit_mut::{self, VisitMut},
-    Attribute, Block, Expr, ExprBlock, ExprLit, ExprMacro, ExprMatch, ExprTuple, Ident, Lit,
-    LitInt, LitStr, Local, Pat, PatIdent, PatTuple, Path, Stmt, Token, Type,
+    Attribute, Expr, ExprLit, ExprMacro, ExprMatch, Ident, Lit,
+    LitInt, LitStr, Local, Pat, Path, Token, Type,
 };
 
 #[cfg(test)]
@@ -25,43 +24,26 @@ fn rewrite_let(i: &mut Local) {
         panic!("Only irrefutable bit-patterns are allowed, found: {}", pat);
     }
     let var_list = vars(&pat);
-    i.pat = Pat::Tuple(PatTuple {
-        attrs: Vec::new(),
-        paren_token: Paren([i.pat.span()]),
-        elems: var_list
-            .iter()
-            .map(|v| {
-                Pat::Ident(PatIdent {
-                    attrs: Vec::new(),
-                    by_ref: None,
-                    mutability: None,
-                    ident: Ident::new(&format!("{}", v), i.pat.span()),
-                    subpat: None,
-                })
-            })
-            .collect(),
+    let items = var_list.iter().map(|v| {
+        let ident = Ident::new(&format!("{}", v), i.pat.span());
+        quote!(#ident)
     });
+    i.pat = parse_quote! { ( #(#items),* ) };
     let ident = Ident::new("orig", i.pat.span());
     let (eq, init) = match i.init.clone() {
         Some(i) => i,
         None => panic!("#[bitmatch] let can only be used with an initializer"),
     };
-    let result = ExprTuple {
-        attrs: Vec::new(),
-        paren_token: Paren([init.span()]),
-        elems: var_list
-            .iter()
-            .map(|&v| {
-                let mask = mask_for(v, &pat);
-                extract_with_mask(&mask, &parse_quote! { #ident })
-            })
-            .collect(),
-    };
+    let elements = var_list.iter().map(|&v| {
+        let mask = mask_for(v, &pat);
+        extract_with_mask(&mask, &parse_quote! { #ident })
+    });
+
     i.init = Some((
         eq,
         parse_quote! {{
             let #ident = #init;
-            #result
+            ( #( #elements ),* )
         }},
     ));
 }
@@ -94,14 +76,7 @@ fn rewrite_match(i: &mut ExprMatch) {
         let vars = vars(case);
         let ident = Ident::new("bits", arm.pat.span());
         let (if_, guard) = pattern_guard(&ident, case);
-        arm.pat = PatIdent {
-            attrs: Vec::new(),
-            by_ref: None,
-            mutability: None,
-            ident: ident.clone(),
-            subpat: None,
-        }
-        .into();
+        arm.pat = parse_quote!(#ident);
         if let Some((_, old_guard)) = &arm.guard {
             let extra_guard = wrap_with_bindings(&ident, &case, &vars, &*old_guard);
             arm.guard = Some((if_, parse_quote! { #guard && #extra_guard }));
