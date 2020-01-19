@@ -108,6 +108,11 @@ fn rewrite_macro(i: &mut Expr) {
         insert_with_mask(&mask, &parse_quote!(#ident))
     });
     *i = or_all(clauses);
+    let value = pat_value(&template);
+    if value.chars().any(|c| c == '1') {
+        let value = make_int_bits(&value);
+        *i = parse_quote!(#value | #i);
+    }
 }
 
 struct BitmatchVisitor;
