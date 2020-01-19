@@ -1,3 +1,4 @@
+extern crate proc_macro;
 use boolean_expression::{Cube, CubeList, CubeVar};
 use proc_macro::TokenStream;
 use proc_macro2::Span;
