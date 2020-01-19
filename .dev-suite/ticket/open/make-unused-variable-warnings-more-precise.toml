@@ -1,0 +1,14 @@
+title = 'Make unused variable warnings more precise'
+status = 'Open'
+id = '84beff00-3a91-11ea-9966-5ba3368310cb'
+assignees = []
+description = '''
+Since we bind variables, they get unused variable warnings. Because they're not
+Rust's variable bindings, the variables are duplicated in the pattern guard and
+the body of the arm, so using them in the pattern guard doesn't mark them as
+used. Those should be marked as used in the body, and we shouldn't get any
+unused variable warnings at all in the pattern guard.
+'''
+version = 'V1'
+
+[comments]

@@ -1,0 +1,13 @@
+title = 'Better match coverage error reporting'
+status = 'Open'
+id = '79200800-3a92-11ea-a45e-32f9d3715f3b'
+assignees = []
+description = '''
+Currently we just fail if all of the branches aren't a covering set. We should
+also warn if a branch is completely subsumed by previous branches, and give
+more precise messages about what cases aren't covered if not everything is
+covered.
+'''
+version = 'V1'
+
+[comments]

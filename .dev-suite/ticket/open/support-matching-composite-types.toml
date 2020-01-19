@@ -1,0 +1,15 @@
+title = 'Support matching composite types'
+status = 'Open'
+id = 'e2544b00-3a93-11ea-9bfc-2609e1b1395b'
+assignees = []
+description = '''
+We should be able to match composite types. In the simplest case, we could just
+allow matching tuples of bitmasks, but potentially it might also be worth
+allowing matching inside arbitrary data structures? This would require changing
+the syntax of bitmatching. Perhaps using #[b] "pattern" or similar? Allowing
+arbitrary data structures would also involve making exhaustivity checking
+dramatically more complicated.
+'''
+version = 'V1'
+
+[comments]

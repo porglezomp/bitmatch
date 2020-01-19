@@ -1,0 +1,12 @@
+title = 'Should support whitespace as placeholders'
+status = 'Open'
+id = '60b1ec80-3a96-11ea-b3af-5b53b89a4d91'
+assignees = []
+description = '''
+It would be nice to support formatting things like "0000_0000 0000_0000" since
+thats how the ISA specs we've been writing have been formatted. Should be easy
+to deal with.
+'''
+version = 'V1'
+
+[comments]
