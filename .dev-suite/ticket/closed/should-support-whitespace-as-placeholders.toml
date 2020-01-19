@@ -1,5 +1,5 @@
 title = 'Should support whitespace as placeholders'
-status = 'Open'
+status = 'Closed'
 id = '60b1ec80-3a96-11ea-b3af-5b53b89a4d91'
 assignees = [[
     '88aa5408-dcc2-42cf-9fd8-17839d2fb819',
@@ -13,3 +13,8 @@ to deal with.
 version = 'V1'
 
 [comments]
+89d57b80-3a9c-11ea-9c66-01ec5545e1ec = [
+    '88aa5408-dcc2-42cf-9fd8-17839d2fb819',
+    'porglezomp',
+    'Complete',
+]

@@ -153,15 +153,12 @@ fn path_eq(path: &Path, name: &str) -> bool {
 
 fn to_cube(lit: &str) -> Cube {
     let lit = lit.trim();
-    let len = lit.chars().filter(|&c| c != '_').count();
+    let len = lit.chars().filter(|&c| c != '_' && c != ' ').count();
     let mut cube = Cube::true_cube(len);
     let mut i = 0;
     for c in lit.chars().rev() {
-        if c == '_' {
-            continue;
-        }
         match c {
-            '_' => continue,
+            '_' | ' ' => continue,
             '0' => cube = cube.with_var(i, CubeVar::False),
             '1' => cube = cube.with_var(i, CubeVar::True),
             _ => (),
@@ -197,7 +194,7 @@ fn pat_mask(p: &str) -> String {
     p.chars()
         .flat_map(|c| match c {
             '0' | '1' => Some('1'),
-            '_' => None,
+            '_' | ' ' => None,
             _ => Some('0'),
         })
         .collect()
@@ -207,7 +204,7 @@ fn pat_value(p: &str) -> String {
     p.chars()
         .flat_map(|c| match c {
             '0' | '1' => Some(c),
-            '_' => None,
+            '_' | ' ' => None,
             _ => Some('0'),
         })
         .collect()
@@ -230,7 +227,7 @@ fn pattern_guard(item: &Ident, case: &str) -> (Token![if], Box<Expr>) {
 fn vars(p: &str) -> Vec<char> {
     let mut items: Vec<_> = p
         .chars()
-        .filter(|&c| c != '0' && c != '1' && c != '_' && c != '?')
+        .filter(|&c| c != '0' && c != '1' && c != '_' && c != ' ' && c != '?')
         .collect();
     items.sort();
     items.dedup();
@@ -240,7 +237,7 @@ fn vars(p: &str) -> Vec<char> {
 fn mask_for(v: char, p: &str) -> String {
     p.chars()
         .flat_map(|c| match c {
-            '_' => None,
+            '_' | ' ' => None,
             c if c == v => Some('1'),
             _ => Some('0'),
         })
