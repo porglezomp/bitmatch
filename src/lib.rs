@@ -1,3 +1,180 @@
+//! The bitmatch crate provides tools for packing and unpacking integers as
+//! sequences of bits.
+//!
+//! These are achieved via the `#[bitmatch]` attribute and the `bitpack!()`
+//! macro. Because of the limitations of the current proc-macro system, they
+//! both must be used inside a function that has the `#[bitmatch]` attribute
+//! on it.
+//!
+//! # Examples
+//!
+//! Using `#[bitmatch]` with a `let` unpacks the bits into separate
+//! single-character variables for each letter you use.
+//!
+//! Using `bitpack!()` re-packs the bits from those single-character variables
+//! into a single integer.
+//! ```
+//! use bitmatch::bitmatch;
+//!
+//! #[bitmatch]
+//! fn interleave(n: u8) -> u8 {
+//!     #[bitmatch]
+//!     let "xxxx_yyyy" = n;
+//!     bitpack!("xyxy_xyxy")
+//! }
+//!
+//! fn main() {
+//!     assert_eq!(interleave(0xF0), 0xAA);
+//! }
+//! ```
+//!
+//! You can use `#[bitmatch]` on a `match` as well, and it will ensure that the
+//! literal portions match, and bind the variable portions.
+//! ```
+//! use bitmatch::bitmatch;
+//! #[bitmatch]
+//! fn decode(inst: u8) -> String {
+//!     #[bitmatch]
+//!     match inst {
+//!         "00oo_aabb" => format!("Op {}, {}, {}", o, a, b),
+//!         "0100_aaii" => format!("Val {}, {}", a, i),
+//!         "01??_????" => format!("Invalid"),
+//!         "10ii_aabb" => format!("Ld {}, {}, {}", a, b, i),
+//!         "11ii_aabb" => format!("St {}, {}, {}", a, b, i),
+//!     }
+//! }
+//! ```
+//!
+//! # Patterns
+//!
+//! A pattern in bitpack is a string containing a binary literal with some bits
+//! replaced with variables and "don't cares." Starting at the most basic end,
+//! you have plain literals: `"0001"` is a 4-bit literal number `1`. Just like
+//! in Rust's integer literals, you can use underscores as you like, which is
+//! particularly helpful when dealing with longer bitstrings. For example,
+//! `"00000000_00000000"` is a 16-bit number zero. You can also use spaces for
+//! rhythm as well, so that could be equivalently written as
+//! `"0000_0000 0000_0000"`.
+//!
+//! Only working with literals, you don't get any benefit over plain binary
+//! integer literals, so that's where don't-cares come in. You can use a `?`
+//! to mark a bit as being allowed to be either 0 or 1. The pattern `"0??0"`
+//! will match any of `"0000"`, `"0010"`, `"0100"`, and `"0110"`.
+//!
+//! As the final step, bitmatch also allows you to include variables in your
+//! patterns, and they will be extracted as separate variables in your
+//! program. Each bit that uses the same letter will be tightly packed into
+//! the corresponding output value. As an example, with the pattern `"aabb"`,
+//! the variable `a` has its bit `0` correspond to the pattern's bit `2`.
+//! If you have a noncontiguous pattern like `"aabbaabb"`, then you get two
+//! variables `a` and `b` that have 4 bits each, all compressed down to fit
+//! at their least-significant bit.
+//!
+//! # Bitmatch with let
+//!
+//! When using `#[bitmatch]` with a `let`, you must use a pattern which can
+//! always match, which means no literal bits. The following doesn't compile
+//! because it might fail to match in some cases, like if `n = 0xF`.
+//!
+//! ```compile_fail
+//! # use bitmatch::bitmatch;
+//! # #[bitmatch]
+//! # fn main() {
+//! # let n = 42;
+//! #[bitmatch]
+//! let "00aa" = n;
+//! # }
+//! ```
+//!
+//! The following does compile, and binds portions of the integer to the
+//! separate variables. Since they're 4 bits, they get one hex digit each:
+//!
+//! ```
+//! # use bitmatch::bitmatch;
+//! # #[bitmatch]
+//! # fn main() {
+//! let n = 0xCD;
+//! #[bitmatch]
+//! let "aaaabbbb" = n;
+//! assert_eq!(a, 0xC);
+//! assert_eq!(b, 0xD);
+//! # }
+//! ```
+//!
+//! When matching non-contiguous bits in the same variable, the spaces in
+//! between the chunks are squished away.
+//!
+//! ```
+//! # use bitmatch::bitmatch;
+//! # #[bitmatch]
+//! # fn main() {
+//! let n = 0b0111_1001;
+//! #[bitmatch]
+//! let "aabbaabb" = n;
+//! assert_eq!(a, 0b0110);
+//! assert_eq!(b, 0b1101);
+//! # }
+//! ```
+//!
+//! # Bitmatch with match
+//!
+//! Working with a `match`, you can use any bitmatch pattern. It will check
+//! exhaustivity for your pattern and fail if you don't handle all cases.
+//!
+//! ```compile_fail
+//! # use bitmatch::bitmatch;
+//! # #[bitmatch]
+//! # fn main() {
+//! # let x = 42;
+//! #[bitmatch]
+//! match x {
+//!    "1???" => 0,
+//!    "00??" => 1,
+//! /* "01??" => 1, */ // this case is necessary though :)
+//! }
+//! # }
+//! ```
+//!
+//! In addition to the main patterns, you can also include pattern guards
+//! that include the bit-variables.
+//!
+//! ```
+//! # use bitmatch::bitmatch;
+//! # #[bitmatch]
+//! # fn main() {
+//! # let x = 42;
+//! # let _: Option<_> =
+//! #[bitmatch]
+//! match x {
+//!    "aabb" if a == b => None,
+//!    "aabb" => Some((a, b)),
+//! }
+//! # ;
+//! # }
+//! ```
+//!
+//! # Bitpack
+//!
+//! When calling `bitpack!`, you must provide a *fully determined* pattern.
+//! That means you can't use any `?` bits, only literal bits and variables.
+//!
+//! `bitpack!` does the opposite job of all the matching, letting you combine
+//! single letter variables back into a packed integer. These were designed
+//! with field-packing and mixing in mind. All of the bits of a given variable
+//! are included in the same order they were in the variable, starting from
+//! the least significant bit.
+//!
+//! ```
+//! # use bitmatch::bitmatch;
+//! # #[bitmatch]
+//! # fn main() {
+//! let a = 0xCD;
+//! let b = 0xEF;
+//! let y = bitpack!("0011aaaabbbbaaaa");
+//! assert_eq!(y, 0x3CFD);
+//! # }
+//! ```
+
 extern crate proc_macro;
 use boolean_expression::{Cube, CubeList, CubeVar};
 use proc_macro::TokenStream;
@@ -340,6 +517,9 @@ fn wrap_with_bindings(ident: &Ident, case: &str, vars: &[char], expr: &Expr) -> 
     }}
 }
 
+/// Marks a function as able to use the bitmatch items.
+///
+/// See the [module-level docs](index.html) for documentation and usage examples.
 #[proc_macro_attribute]
 pub fn bitmatch(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as syn::Item);
