@@ -183,9 +183,10 @@ use quote::{quote, ToTokens};
 use syn::{
     parse_macro_input, parse_quote,
     spanned::Spanned,
+    visit::Visit,
     visit_mut::{self, VisitMut},
-    Attribute, Expr, ExprLit, ExprMacro, ExprMatch, Ident, Lit,
-    LitInt, LitStr, Local, Pat, Path, Token, Type,
+    Attribute, Expr, ExprLit, ExprMacro, ExprMatch, Ident, Lit, LitInt, LitStr, Local, Pat, Path,
+    Token, Type,
 };
 
 #[cfg(test)]
@@ -254,14 +255,17 @@ fn rewrite_match(i: &mut ExprMatch) {
         let ident = Ident::new("bits", arm.pat.span());
         let (if_, guard) = pattern_guard(&ident, case);
         arm.pat = parse_quote!(#ident);
-        if let Some((_, old_guard)) = &arm.guard {
-            let extra_guard = wrap_with_bindings(&ident, &case, &vars, &*old_guard);
+        let used = if let Some((_, old_guard)) = &arm.guard {
+            let used = used_simple_vars(&old_guard);
+            let extra_guard = wrap_with_bindings(&ident, &case, &vars, &*old_guard, &vars);
             arm.guard = Some((if_, parse_quote! { #guard && #extra_guard }));
+            used
         } else {
             arm.guard = Some((if_, guard));
-        }
+            Vec::new()
+        };
         if !vars.is_empty() {
-            arm.body = Box::new(wrap_with_bindings(&ident, &case, &vars, &arm.body));
+            arm.body = Box::new(wrap_with_bindings(&ident, &case, &vars, &arm.body, &used));
         }
     }
     i.arms
@@ -504,17 +508,45 @@ fn or_all(mut clauses: impl Iterator<Item = impl ToTokens>) -> Expr {
     }
 }
 
-fn wrap_with_bindings(ident: &Ident, case: &str, vars: &[char], expr: &Expr) -> Expr {
+fn wrap_with_bindings(
+    ident: &Ident,
+    case: &str,
+    vars: &[char],
+    expr: &Expr,
+    allow_unused: &[char],
+) -> Expr {
     let binds = vars.iter().map(|&var| {
         let bind = Ident::new(&format!("{}", var), expr.span());
         let mask = mask_for(var, case);
         let extracted = extract_with_mask(&mask, &parse_quote! { #ident });
-        quote! { let #bind = #extracted; }
+        if allow_unused.iter().find(|&&v| v == var).is_some() {
+            quote! { #[allow(unused)] let #bind = #extracted; }
+        } else {
+            quote! { let #bind = #extracted; }
+        }
     });
     parse_quote! {{
         #( #binds )*
         #expr
     }}
+}
+
+fn used_simple_vars(e: &Expr) -> Vec<char> {
+    let mut visitor = SimpleVarsVisitor(Vec::new());
+    visitor.visit_expr(e);
+    visitor.0.sort();
+    visitor.0.dedup();
+    visitor.0
+}
+
+struct SimpleVarsVisitor(Vec<char>);
+impl<'ast> Visit<'ast> for SimpleVarsVisitor {
+    fn visit_ident(&mut self, i: &'ast Ident) {
+        let name = format!("{}", quote! { #i });
+        if name.chars().count() == 1 {
+            self.0.push(name.chars().next().unwrap());
+        }
+    }
 }
 
 /// Marks a function as able to use the bitmatch items.

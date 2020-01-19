@@ -1,5 +1,5 @@
 title = 'Make unused variable warnings more precise'
-status = 'Open'
+status = 'Closed'
 id = '84beff00-3a91-11ea-9966-5ba3368310cb'
 assignees = [[
     '88aa5408-dcc2-42cf-9fd8-17839d2fb819',

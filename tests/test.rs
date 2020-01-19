@@ -13,7 +13,8 @@ fn interleave(x: u8, y: u8) -> u16 {
 }
 
 #[bitmatch]
-fn decode(inst: u8) -> u8 {
+pub fn decode(inst: u8) -> u8 {
+    let zero = 0;
     #[bitmatch]
     match inst {
         "0000_0000" => 0,
@@ -24,7 +25,11 @@ fn decode(inst: u8) -> u8 {
         "1000_aabb" if a == b => a ^ b,
         "10??_????" => 3,
         "11??_aabb" if a == b => 3,
-        "11??_aabb" => 4,
+        "11??_aabb" if a != zero => b,
+        "11??_aabb" => {
+            let _ = a;
+            b
+        }
     }
 }
 
