@@ -73,7 +73,9 @@ fn rewrite_match(i: &mut ExprMatch) {
     for arm in &i.arms {
         match pat_str(&arm.pat) {
             Some(s) => {
-                cubelist = cubelist.merge(&CubeList::from_list(&[to_cube(&s)]));
+                if arm.guard.is_none() {
+                    cubelist = cubelist.merge(&CubeList::from_list(&[to_cube(&s)]));
+                }
                 cases.push(s);
             }
             None => {
@@ -89,8 +91,9 @@ fn rewrite_match(i: &mut ExprMatch) {
         panic!("Some cases not covered. Cases: {:?}", cases);
     }
     for (arm, case) in i.arms.iter_mut().zip(&cases) {
+        let vars = vars(case);
         let ident = Ident::new("bits", arm.pat.span());
-        let guard = pattern_guard(&ident, case);
+        let (if_, guard) = pattern_guard(&ident, case);
         arm.pat = PatIdent {
             attrs: Vec::new(),
             by_ref: None,
@@ -99,30 +102,14 @@ fn rewrite_match(i: &mut ExprMatch) {
             subpat: None,
         }
         .into();
-        assert!(arm.guard.is_none());
-        arm.guard = Some(guard);
-        let vars = vars(case);
+        if let Some((_, old_guard)) = &arm.guard {
+            let extra_guard = wrap_with_bindings(&ident, &case, &vars, &*old_guard);
+            arm.guard = Some((if_, parse_quote! { #guard && #extra_guard }));
+        } else {
+            arm.guard = Some((if_, guard));
+        }
         if !vars.is_empty() {
-            let mut binds: Vec<Stmt> = Vec::new();
-            for &var in &vars {
-                let bind = Ident::new(&format!("{}", var), ident.span());
-                let mask = mask_for(var, case);
-                let extracted = extract_with_mask(&mask, &parse_quote! { #ident });
-                binds.push(parse_quote! {
-                    let #bind = #extracted;
-                });
-            }
-            let body = *arm.body.clone();
-            let body_span = body.span();
-            binds.push(Stmt::Expr(body));
-            arm.body = Box::new(Expr::Block(ExprBlock {
-                attrs: Vec::new(),
-                label: None,
-                block: Block {
-                    brace_token: Brace([body_span]),
-                    stmts: binds,
-                },
-            }));
+            arm.body = Box::new(wrap_with_bindings(&ident, &case, &vars, &arm.body));
         }
     }
     i.arms
@@ -360,12 +347,21 @@ fn or_all(clauses: &[Expr]) -> Expr {
     if clauses.is_empty() {
         parse_quote!(0)
     } else {
-        let mut acc = clauses[0].clone();
-        for clause in &clauses[1..] {
-            acc = parse_quote!(#acc | #clause);
-        }
-        acc
+        parse_quote!( #(#clauses)|* )
     }
+}
+
+fn wrap_with_bindings(ident: &Ident, case: &str, vars: &[char], expr: &Expr) -> Expr {
+    let binds = vars.iter().map(|&var| {
+        let bind = Ident::new(&format!("{}", var), expr.span());
+        let mask = mask_for(var, case);
+        let extracted = extract_with_mask(&mask, &parse_quote! { #ident });
+        quote! { let #bind = #extracted; }
+    });
+    parse_quote! {{
+        #( #binds )*
+        #expr
+    }}
 }
 
 #[proc_macro_attribute]
