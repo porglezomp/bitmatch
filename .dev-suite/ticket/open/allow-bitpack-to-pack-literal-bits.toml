@@ -1,0 +1,11 @@
+title = 'Allow bitpack to pack literal bits'
+status = 'Open'
+id = '41798600-3abb-11ea-9c1d-ea233ed8f70d'
+assignees = []
+description = '''
+For example, bitpack!("1110_aabb") should pack the literals in with the
+interpolated variables.
+'''
+version = 'V1'
+
+[comments]
