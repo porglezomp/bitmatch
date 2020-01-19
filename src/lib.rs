@@ -6,10 +6,10 @@ use quote::quote;
 use syn::{
     parse_macro_input, parse_quote,
     spanned::Spanned,
-    token::Brace,
+    token::{Brace, Paren},
     visit_mut::{self, VisitMut},
-    Attribute, Block, Expr, ExprBlock, ExprLit, ExprMacro, ExprMatch, Ident, Lit, LitInt, Local,
-    Pat, PatIdent, PatWild, Path, Stmt, Token,
+    Attribute, Block, Expr, ExprBlock, ExprLit, ExprMacro, ExprMatch, ExprTuple, Ident, Lit,
+    LitInt, Local, Pat, PatIdent, PatTuple, Path, Stmt, Token,
 };
 
 #[cfg(test)]
@@ -17,7 +17,53 @@ mod test;
 
 fn rewrite_let(i: &mut Local) {
     i.attrs.retain(|attr| !path_eq(&attr.path, "bitmatch"));
-    // println!("Rewrote let: {:#?}", i);
+    let pat = match pat_str(&i.pat) {
+        Some(pat) => pat,
+        None => panic!("Requires strings as patterns"),
+    };
+    if !irrefutable_pat(&pat) {
+        panic!("Only irrefutable bit-patterns are allowed, found: {}", pat);
+    }
+    let var_list = vars(&pat);
+    i.pat = Pat::Tuple(PatTuple {
+        attrs: Vec::new(),
+        paren_token: Paren([i.pat.span()]),
+        elems: var_list
+            .iter()
+            .map(|v| {
+                Pat::Ident(PatIdent {
+                    attrs: Vec::new(),
+                    by_ref: None,
+                    mutability: None,
+                    ident: Ident::new(&format!("{}", v), i.pat.span()),
+                    subpat: None,
+                })
+            })
+            .collect(),
+    });
+    let ident = Ident::new("orig", i.pat.span());
+    let (eq, init) = match i.init.clone() {
+        Some(i) => i,
+        None => panic!("#[bitmatch] let can only be used with an initializer"),
+    };
+    let result = ExprTuple {
+        attrs: Vec::new(),
+        paren_token: Paren([init.span()]),
+        elems: var_list
+            .iter()
+            .map(|&v| {
+                let mask = mask_for(v, &pat);
+                extract_with_mask(&mask, &parse_quote! { #ident })
+            })
+            .collect(),
+    };
+    i.init = Some((
+        eq,
+        parse_quote! {{
+            let #ident = #init;
+            #result
+        }},
+    ));
 }
 
 fn rewrite_match(i: &mut ExprMatch) {
@@ -60,9 +106,10 @@ fn rewrite_match(i: &mut ExprMatch) {
             let mut binds: Vec<Stmt> = Vec::new();
             for &var in &vars {
                 let bind = Ident::new(&format!("{}", var), ident.span());
-                let mask = make_int_bits(&mask_for(var, case));
+                let mask = mask_for(var, case);
+                let extracted = extract_with_mask(&mask, &parse_quote! { #ident });
                 binds.push(parse_quote! {
-                    let #bind = #ident & #mask;
+                    let #bind = #extracted;
                 });
             }
             let body = *arm.body.clone();
@@ -78,7 +125,8 @@ fn rewrite_match(i: &mut ExprMatch) {
             }));
         }
     }
-    i.arms.push(parse_quote! { _ => unreachable!("#[bitmatch] fallback branch") });
+    i.arms
+        .push(parse_quote! { _ => unreachable!("#[bitmatch] fallback branch") });
 }
 
 fn rewrite_macro(i: &mut Expr) {
@@ -230,8 +278,19 @@ fn mask_for(v: char, p: &str) -> String {
         .collect()
 }
 
+fn irrefutable_pat(p: &str) -> bool {
+    p.chars().all(|p| p != '0' && p != '1')
+}
+
+fn extract_with_mask(m: &str, expr: &Expr) -> Expr {
+    let mask = make_int_bits(m);
+    parse_quote! {
+        #expr & #mask
+    }
+}
+
 #[proc_macro_attribute]
-pub fn bitmatch(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn bitmatch(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as syn::Item);
     BitmatchVisitor.visit_item_mut(&mut input);
     TokenStream::from(quote! { #input })

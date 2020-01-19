@@ -1,13 +1,11 @@
 use bitmatch::bitmatch;
 
-/*
 #[bitmatch]
-fn shuffle(n: u8) -> u8 {
+fn interleave(n: u8) -> u8 {
     #[bitmatch]
     let "xxxx_yyyy" = n;
     bitpack!(xyxyxyxy)
 }
-*/
 
 #[bitmatch]
 fn decode(inst: u8) -> u8 {
@@ -24,5 +22,4 @@ fn decode(inst: u8) -> u8 {
     }
 }
 
-fn main() {
-}
+fn main() {}
