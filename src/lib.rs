@@ -6,6 +6,9 @@
 //! both must be used inside a function that has the `#[bitmatch]` attribute
 //! on it.
 //!
+//! Since it generates normal bitmasking, it can be used in `#![no_std]`
+//! crates.
+//!
 //! # Examples
 //!
 //! Using `#[bitmatch]` with a `let` unpacks the bits into separate

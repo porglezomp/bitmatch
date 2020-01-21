@@ -5,7 +5,7 @@
 [![Docs.rs Documentation Version Number](https://docs.rs/bitmatch/badge.svg)](https://docs.rs/crate/)
 
 The bitmatch crate provides tools for packing and unpacking integers as
-sequences of bits.
+sequences of bits. Supports `#![no_std]`.
 
 ## Examples
 

@@ -9,7 +9,7 @@ repository = "https://github.com/porglezomp/bitmatch"
 documentation = "https://docs.rs/crate/bitmatch"
 readme = "README.md"
 keywords = ["bitpacking", "binary", "decoder", "matching", "macro"]
-categories = ["parsing"]
+categories = ["parsing", "no-std"]
 
 [lib]
 proc-macro = true
