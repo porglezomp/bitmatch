@@ -33,6 +33,16 @@ pub fn decode(inst: u8) -> u8 {
     }
 }
 
+#[bitmatch]
+pub fn match_with_wildcard(i: u8) -> u8 {
+    #[bitmatch]
+    match i {
+        "0000" => 0,
+        "???1" => 1,
+        _ => 2
+    }
+}
+
 #[test]
 fn test_swap_nibbles() {
     assert_eq!(swap_nibbles(0xfa), 0xaf);
@@ -41,4 +51,11 @@ fn test_swap_nibbles() {
 #[test]
 fn test_interleave() {
     assert_eq!(interleave(0xFF, 0x00), 0xAAAA);
+}
+
+#[test]
+fn test_match_with_wildcard() {
+    assert_eq!(match_with_wildcard(0b0000), 0);
+    assert_eq!(match_with_wildcard(0b1001), 1);
+    assert_eq!(match_with_wildcard(0b1110), 2);
 }

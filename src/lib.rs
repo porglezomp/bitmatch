@@ -197,9 +197,9 @@ mod test;
 
 fn rewrite_let(i: &mut Local) {
     i.attrs.retain(|attr| !path_eq(&attr.path, "bitmatch"));
-    let pat = match pat_str(&i.pat) {
-        Some(pat) => pat,
-        None => panic!("Requires strings as patterns"),
+    let pat = match pattern(&i.pat) {
+        Pattern::Str(pat) => pat,
+        _ => panic!("Requires strings as patterns"),
     };
     if !irrefutable_pat(&pat) {
         panic!("Only irrefutable bit-patterns are allowed, found: {}", pat);
@@ -231,44 +231,54 @@ fn rewrite_let(i: &mut Local) {
 
 fn rewrite_match(i: &mut ExprMatch) {
     i.attrs.retain(|attr| !path_eq(&attr.path, "bitmatch"));
-    let mut cases = Vec::with_capacity(i.arms.len());
+    let mut patterns = Vec::with_capacity(i.arms.len());
     let mut cubelist = CubeList::new();
-    for arm in &i.arms {
-        match pat_str(&arm.pat) {
-            Some(s) => {
+    let mut has_wildcard = false;
+    for arm in i.arms.iter() {
+        match pattern(&arm.pat) {
+            Pattern::Str(s) => {
                 if arm.guard.is_none() {
                     cubelist = cubelist.merge(&CubeList::from_list(&[to_cube(&s)]));
                 }
-                cases.push(s);
+                patterns.push(Some(s));
             }
-            None => {
+            Pattern::Wildcard => {
+                has_wildcard = true;
+                patterns.push(None);
+            }
+            Pattern::Invalid => {
                 let pat = &arm.pat;
                 panic!(
-                    "#[bitmatch] match patterns must be string literals, but found {}",
+                    "#[bitmatch] match patterns must be string literals or a wildcard, but found {}",
                     quote! { #pat }
                 )
             }
         }
     }
-    if !true_cubelist(&cubelist) {
-        panic!("Some cases not covered. Cases: {:?}", cases);
+    if !has_wildcard && !true_cubelist(&cubelist) {
+        panic!("Some cases not covered.\nConvered cases: {:?}", patterns);
     }
-    for (arm, case) in i.arms.iter_mut().zip(&cases) {
-        let vars = vars(case);
-        let ident = Ident::new("bits", arm.pat.span());
-        let (if_, guard) = pattern_guard(&ident, case);
-        arm.pat = parse_quote!(#ident);
-        let used = if let Some((_, old_guard)) = &arm.guard {
-            let used = used_simple_vars(&old_guard);
-            let extra_guard = wrap_with_bindings(&ident, &case, &vars, &*old_guard, &vars);
-            arm.guard = Some((if_, parse_quote! { #guard && #extra_guard }));
-            used
-        } else {
-            arm.guard = Some((if_, guard));
-            Vec::new()
-        };
-        if !vars.is_empty() {
-            arm.body = Box::new(wrap_with_bindings(&ident, &case, &vars, &arm.body, &used));
+    for (arm, pattern) in i.arms.iter_mut().zip(&patterns) {
+        match pattern {
+            Some(case) => {
+                let vars = vars(case);
+                let ident = Ident::new("bits", arm.pat.span());
+                let (if_, guard) = pattern_guard(&ident, case);
+                arm.pat = parse_quote!(#ident);
+                let used = if let Some((_, old_guard)) = &arm.guard {
+                    let used = used_simple_vars(&old_guard);
+                    let extra_guard = wrap_with_bindings(&ident, &case, &vars, &*old_guard, &vars);
+                    arm.guard = Some((if_, parse_quote! { #guard && #extra_guard }));
+                    used
+                } else {
+                    arm.guard = Some((if_, guard));
+                    Vec::new()
+                };
+                if !vars.is_empty() {
+                    arm.body = Box::new(wrap_with_bindings(&ident, &case, &vars, &arm.body, &used));
+                }
+            },
+            None => { /* wildcard arm doesn't need to be rewritten */ }
         }
     }
     i.arms
@@ -367,15 +377,22 @@ fn true_cubelist(cubelist: &CubeList) -> bool {
             .all(|v| v == &CubeVar::DontCare)
 }
 
-fn pat_str(p: &Pat) -> Option<String> {
+enum Pattern {
+   Str(String),
+   Wildcard,
+   Invalid,
+}
+
+fn pattern(p: &Pat) -> Pattern {
     match p {
         Pat::Lit(pl) => match &*pl.expr {
             Expr::Lit(ExprLit {
                 lit: Lit::Str(s), ..
-            }) => Some(s.value()),
-            _ => None,
+            }) => Pattern::Str(s.value()),
+            _ => Pattern::Invalid,
         },
-        _ => None,
+        Pat::Wild(_) => Pattern::Wildcard,
+        _ => Pattern::Invalid,
     }
 }
 
