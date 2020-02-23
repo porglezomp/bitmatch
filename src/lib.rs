@@ -461,7 +461,7 @@ fn mask_segments(m: &str) -> Vec<(usize, usize)> {
 
 fn int_of_width(m: &str) -> Type {
     if m.len() > 128 {
-        panic!("Unupported: bit pattern {:?} wider than 128 bits", m)
+        panic!("Unsupported: bit pattern {:?} wider than 128 bits", m)
     } else if m.len() > 64 {
         parse_quote!(u128)
     } else if m.len() > 32 {
