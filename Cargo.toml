@@ -15,7 +15,7 @@ categories = ["parsing", "no-std"]
 proc-macro = true
 
 [dependencies]
-syn = {version = "1.0", features = ["full", "extra-traits", "visit", "visit-mut"] }
+syn = {version = "1.0", features = ["full", "visit", "visit-mut"] }
 quote = "1.0"
 boolean_expression = "0.3.10"
 proc-macro2 = "1.0"
