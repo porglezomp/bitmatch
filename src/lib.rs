@@ -255,7 +255,7 @@ fn rewrite_match(i: &mut ExprMatch) {
             }
         }
     }
-    if !has_wildcard && !true_cubelist(&cubelist) {
+    if !(has_wildcard || true_cubelist(&cubelist)) {
         panic!("Some cases not covered.\nConvered cases: {:?}", patterns);
     }
     for (arm, pattern) in i.arms.iter_mut().zip(&patterns) {
