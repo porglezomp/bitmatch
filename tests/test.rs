@@ -43,6 +43,18 @@ pub fn match_with_wildcard(i: u8) -> u8 {
     }
 }
 
+#[bitmatch]
+fn long_pattern(x: u64) -> u64 {
+    #[bitmatch]
+    let "rxxxxxxx_xxxxxxxx_xxxxxxxx_cccccccc_dddddddd_dddddddd_dddddddd_dddddddd" = x;
+    #[bitmatch]
+    let "aaaaaaaa_aaaaaaaa_aaaaaaaa_aaaaaaaa
+         aaaaaaaa_bbbbbbbb_aaaaaaaa_aaaaaaaa
+         aaaaaaaa_aaaaaaaa_aaaaaaaa_aaaaaaaa
+         aaaaaaaa_aaaaaaaa_aaaaaaaa_aaaaaaaa" = 0u128;
+    (a as u64) ^ (b as u64) ^ r ^ x ^ c ^ d
+}
+
 #[test]
 fn test_swap_nibbles() {
     assert_eq!(swap_nibbles(0xfa), 0xaf);
@@ -58,4 +70,9 @@ fn test_match_with_wildcard() {
     assert_eq!(match_with_wildcard(0b0000), 0);
     assert_eq!(match_with_wildcard(0b1001), 1);
     assert_eq!(match_with_wildcard(0b1110), 2);
+}
+
+#[test]
+fn test_long_pattern() {
+    long_pattern(0);
 }

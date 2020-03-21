@@ -501,7 +501,7 @@ fn extract_with_mask(m: &str, expr: &Expr) -> Expr {
     let segs = mask_segments(m);
     let clauses = segs.iter().map(|(start, count)| {
         let amt = start - cumulative;
-        let mask = LitInt::new(&format!("0x{:X}", ((1 << count) - 1) << start), expr.span());
+        let mask = LitInt::new(&format!("0b{0:1<1$}{0:0<2$}", "", count, start), expr.span());
         cumulative += count;
         quote!((#expr & #mask) >> #amt)
     });
@@ -515,7 +515,7 @@ fn insert_with_mask(m: &str, expr: &Expr) -> Expr {
     let clauses = segs.iter().map(|(start, count)| {
         let amt = start - cumulative;
         let mask = LitInt::new(
-            &format!("0x{:X}", ((1 << count) - 1) << cumulative),
+            &format!("0b{0:1<1$}{0:0<2$}", "", count, cumulative),
             expr.span(),
         );
         cumulative += count;
