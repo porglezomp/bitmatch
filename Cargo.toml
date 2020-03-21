@@ -1,6 +1,6 @@
 [package]
 name = "bitmatch"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Cassie Jones <code@witchoflight.com>"]
 edition = "2018"
 license = "MPL-2.0"
