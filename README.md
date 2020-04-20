@@ -2,7 +2,7 @@
 
 [![Crates.io Library Version Number](https://img.shields.io/crates/v/bitmatch)](https://crates.io/crates/bitmatch)
 [![Crates.io Library License](https://img.shields.io/crates/l/bitmatch)](https://www.mozilla.org/en-US/MPL/2.0/)
-[![Docs.rs Documentation Version Number](https://docs.rs/bitmatch/badge.svg)](https://docs.rs/crate/)
+[![Docs.rs Documentation Version Number](https://docs.rs/bitmatch/badge.svg)](https://docs.rs/bitmatch/)
 
 The bitmatch crate provides tools for packing and unpacking integers as
 sequences of bits. Supports `#![no_std]`.
